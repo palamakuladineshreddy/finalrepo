@@ -1,36 +1,36 @@
-# syntax=docker/dockerfile:1
-FROM docker.io/continuumio/miniconda3:latest
+# Use lightweight Python image
+FROM python:3.9-slim
 
-WORKDIR /
+# Prevent Python from writing pyc files & enable logs immediately
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
 
-COPY ./flow/requirements.txt /flow/requirements.txt
+# Set working directory
+WORKDIR /app
 
-# gcc is for build psutil in MacOS
-RUN apt-get update && apt-get install -y runit gcc
+# Install system dependencies (minimal)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    gcc \
+    && rm -rf /var/lib/apt/lists/*
 
-# create conda environment
-RUN conda create -n promptflow-serve python=3.9.16 pip=23.0.1 -q -y && \
-    conda run -n promptflow-serve \
-    pip install -r /flow/requirements.txt && \
-    conda run -n promptflow-serve pip install promptflow && \
-    conda run -n promptflow-serve pip install keyrings.alt && \
-    conda run -n promptflow-serve pip install gunicorn==22.0.0 && \
-    conda run -n promptflow-serve pip install 'uvicorn>=0.27.0,<1.0.0' && \
-    conda run -n promptflow-serve pip cache purge && \
-    conda clean -a -y
+# Copy only requirements first (better caching)
+COPY flow/requirements.txt .
 
-COPY ./flow /flow
+# Upgrade pip and install dependencies
+RUN pip install --upgrade pip && \
+    pip install --no-cache-dir \
+        -r requirements.txt \
+        promptflow==1.18.5 \
+        gunicorn==22.0.0 \
+        "uvicorn>=0.27.0,<1.0.0" \
+        keyrings.alt
 
+# Copy application code
+COPY flow/ /app/
 
+# Expose port (adjust if needed)
 EXPOSE 8080
 
-COPY ./connections /connections
-
-# reset runsvdir
-RUN rm -rf /var/runit
-COPY ./runit /var/runit
-# grant permission
-RUN chmod -R +x /var/runit
-
-COPY ./start.sh /
-CMD ["bash", "./start.sh"]
+# Start app (adjust module name if different)
+CMD ["gunicorn", "-k", "uvicorn.workers.UvicornWorker", "-w", "2", "-b", "0.0.0.0:8080", "app:app"]
