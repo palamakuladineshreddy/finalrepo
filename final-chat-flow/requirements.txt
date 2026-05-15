@@ -4,7 +4,7 @@ promptflow==1.18.2
 promptflow-azure==1.18.2
 promptflow-core==1.18.2
 promptflow-devkit==1.18.2
-promptflow-tools==1.6.1
+promptflow-tools==1.6.0
 promptflow-tracing==1.18.2
 keyrings.alt
 azure-search-documents
